@@ -1,5 +1,4 @@
-// app.js — تطبيق تقرير طلاب QUREO بواجهة رسومية (يدعم صيغ Excel و CSV المتعددة + تصدير Excel متعدد الأوراق)
-// البناء: npx pkg app.js --targets node22-win-x64 --output QureoReport.exe
+// app.js — تطبيق تقرير طلاب QUREO (يعمل أونلاين على السيرفر للموبايل ومحليًا على الكمبيوتر — بدون كلمة مرور)
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -8,10 +7,9 @@ const XLSX = require('xlsx');
 
 process.on('uncaughtException', (err) => {
   console.error('Unexpected error:', err);
-  setInterval(() => {}, 10000);
 });
 
-const PORT = 3456;
+const PORT = process.env.PORT || 3456;
 const PORTAL = 'https://me-portal.qureo.education';
 const APP = 'https://me-tp.qureo.education';
 const CHAPTERS_PATH = '/api/study/students/sections/5/chapters';
@@ -31,7 +29,6 @@ const state = {
   elapsedSec: 0,
 };
 
-// توحيد أسماء الأعمدة مهما اختلف تنسيق ملف الإكسل أو CSV
 function normalizeStudentRow(rawObj) {
   let name = '';
   let className = '';
@@ -46,7 +43,6 @@ function normalizeStudentRow(rawObj) {
 
     if (!name && (compactKey === 'name' || compactKey === 'الاسم' || key.includes('اسم الطالب'))) {
       name = val;
-      // إذا كان عنوان العمود يحتوي على اسم المدرسة/الفصول قبل "اسم الطالب" نستخرجه كفصل افتراضي
       const match = key.match(/(?:المدرسة\s*:\s*)?(.+?)\s*اسم\s*الطالب/);
       if (match && match[1]) inferredClassFromHeader = match[1].trim();
     } else if (!className && (compactKey === 'class' || compactKey === 'الفصل' || compactKey === 'فصل')) {
@@ -73,7 +69,6 @@ function parseStudentsFile(base64Data, fileName = '') {
   const buf = Buffer.from(base64Data, 'base64');
   const isExcel = /\.(xlsx|xls)$/i.test(fileName);
 
-  // 1) إذا كان الملف Excel (.xlsx أو .xls)
   if (isExcel) {
     const wb = XLSX.read(buf, { type: 'buffer' });
     const firstSheet = wb.Sheets[wb.SheetNames[0]];
@@ -84,7 +79,6 @@ function parseStudentsFile(base64Data, fileName = '') {
       .filter((r) => r.student_id || r.password || r.name);
   }
 
-  // 2) إذا كان الملف CSV
   const text = buf.toString('utf8').replace(/^\uFEFF/, '');
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
   if (!lines.length) return [];
@@ -406,8 +400,10 @@ async function runJob(fileBase64, fileName) {
     await Promise.all(workers);
 
     state.xlsxBuffer = buildExcelWorkbook(state.rows);
-    const outDir = process.pkg ? path.dirname(process.execPath) : process.cwd();
-    fs.writeFileSync(path.join(outDir, 'report.xlsx'), state.xlsxBuffer);
+    if (!process.env.PORT) {
+      const outDir = process.pkg ? path.dirname(process.execPath) : process.cwd();
+      fs.writeFileSync(path.join(outDir, 'report.xlsx'), state.xlsxBuffer);
+    }
   } catch (e) {
     state.error = e.message;
   } finally {
@@ -424,24 +420,24 @@ const HTML = `<!DOCTYPE html>
 <title>تقرير تقدم طلاب QUREO</title>
 <style>
   * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
-  body { margin: 0; background: #f1f5f9; color: #0f172a; padding: 20px; }
-  .container { max-width: 1100px; margin: 0 auto; background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-  h1 { margin: 0 0 18px; font-size: 22px; color: #1e3a8a; }
-  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; background: #f8fafc; padding: 16px; border-radius: 10px; border: 1px solid #e2e8f0; }
-  .field { display: flex; flex-direction: column; gap: 6px; }
+  body { margin: 0; background: #f1f5f9; color: #0f172a; padding: 14px; }
+  .container { max-width: 1100px; margin: 0 auto; background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+  h1 { margin: 0 0 16px; font-size: 20px; color: #1e3a8a; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; background: #f8fafc; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; }
+  .field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 220px; }
   label { font-size: 13px; font-weight: 600; color: #334155; }
-  input[type="file"] { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font-size: 14px; }
+  input[type="file"] { padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font-size: 14px; width: 100%; }
   button { padding: 10px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
   .btn-start { background: #2563eb; color: #fff; }
   .btn-start:disabled { background: #94a3b8; cursor: not-allowed; }
   .btn-stop { background: #dc2626; color: #fff; display: none; }
   .btn-dl { background: #16a34a; color: #fff; display: none; }
-  .progress-wrap { margin: 18px 0; display: none; }
+  .progress-wrap { margin: 16px 0; display: none; }
   .bar-bg { width: 100%; height: 14px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
   .bar-fill { height: 100%; width: 0%; background: #2563eb; transition: width 0.25s; }
-  .stats { display: flex; gap: 18px; margin-top: 10px; font-size: 14px; font-weight: 600; flex-wrap: wrap; }
+  .stats { display: flex; gap: 14px; margin-top: 10px; font-size: 13px; font-weight: 600; flex-wrap: wrap; }
   .ok { color: #16a34a; } .fail { color: #dc2626; }
-  .table-wrap { margin-top: 16px; max-height: 440px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+  .table-wrap { margin-top: 16px; max-height: 440px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; -webkit-overflow-scrolling: touch; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { padding: 9px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; white-space: nowrap; }
   th { background: #f8fafc; position: sticky; top: 0; color: #1e293b; }
@@ -486,10 +482,12 @@ const HTML = `<!DOCTYPE html>
 </div>
 <script>
 let timer = null;
+
 async function startCheck() {
   const file = document.getElementById('csvFile').files[0];
   const errBox = document.getElementById('errBox');
   errBox.textContent = '';
+
   if (!file) { errBox.textContent = 'يرجى اختيار ملف الطلاب (Excel أو CSV) أولاً.'; return; }
 
   const arrayBuf = await file.arrayBuffer();
@@ -549,13 +547,15 @@ async function poll() {
 </html>`;
 
 const server = http.createServer((req, res) => {
-  if (req.method === 'GET' && req.url === '/') {
+  const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+  if (req.method === 'GET' && reqUrl.pathname === '/') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return res.end(HTML);
   }
-  if (req.method === 'POST' && req.url === '/api/start') {
+  if (req.method === 'POST' && reqUrl.pathname === '/api/start') {
     if (state.running) {
-      res.writeHead(409);
+      res.writeHead(409, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('الفحص يعمل بالفعل');
     }
     let body = '';
@@ -573,12 +573,12 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (req.method === 'POST' && req.url === '/api/stop') {
+  if (req.method === 'POST' && reqUrl.pathname === '/api/stop') {
     state.stopRequested = true;
     res.writeHead(200);
     return res.end('stopping');
   }
-  if (req.method === 'GET' && req.url === '/api/status') {
+  if (req.method === 'GET' && reqUrl.pathname === '/api/status') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     return res.end(
       JSON.stringify({
@@ -594,7 +594,7 @@ const server = http.createServer((req, res) => {
       })
     );
   }
-  if (req.method === 'GET' && req.url === '/api/download') {
+  if (req.method === 'GET' && reqUrl.pathname === '/api/download') {
     res.writeHead(200, {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': 'attachment; filename="report.xlsx"',
@@ -605,12 +605,10 @@ const server = http.createServer((req, res) => {
   res.end('Not Found');
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, '0.0.0.0', () => {
   const url = `http://127.0.0.1:${PORT}`;
   console.log('====================================================');
-  console.log(' QUREO Student Progress Report Tool is running');
-  console.log(` Open in browser: ${url}`);
-  console.log(' Keep this window open while using the app...');
+  console.log(` QUREO Report Server running on port ${PORT}`);
   console.log('====================================================');
-  if (process.platform === 'win32') exec(`start "" "${url}"`);
+  if (!process.env.PORT && process.platform === 'win32') exec(`start "" "${url}"`);
 });
