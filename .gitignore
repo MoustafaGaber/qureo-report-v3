@@ -16,3 +16,9 @@ bundle.js
 Thumbs.db
 .vscode/
 .env
+node_modules/
+*.exe
+*.blob
+bundle.js
+sea-config.json
+report.xlsx

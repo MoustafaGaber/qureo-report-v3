@@ -1,22 +1,20 @@
 {
-  "name": "qureo",
-  "version": "1.0.0",
+  "name": "qureo-report",
+  "version": "3.0.0",
   "main": "app.js",
   "type": "commonjs",
+  "scripts": {
+    "start": "node app.js",
+    "build:64": "pkg app.js --targets node22-win-x64 --output QureoReport_x64.exe",
+    "build:32": "npx pkg@5.8.1 app.js --targets node18-win-x86 --output QureoReport_x86.exe"
+  },
   "dependencies": {
-    "csv-parse": "^7.0.3",
-    "playwright": "^1.65.1",
-    "puppeteer-core": "^25.18.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@yao-pkg/pkg": "^6.26.0",
-    "esbuild": "^0.28.2"
-  },
-  "pkg": {
-    "assets": [
-      "node_modules/playwright-core/**/*",
-      "node_modules/playwright/**/*"
-    ]
+    "esbuild": "^0.28.2",
+    "esbuild-wasm": "^0.28.2",
+    "postject": "^1.0.0-alpha.6"
   }
 }
